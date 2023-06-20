@@ -106,16 +106,13 @@ local function PublicGarage(garageName, type)
     local garage = Config.Garages[garageName]
     local categories = garage.vehicleCategories
     local superCategory = GetSuperCategoryFromCategories(categories)
-
-    exports['qb-menu']:openMenu({
-        {
-            header = garage.label,
-            isMenuHeader = true,
-        },
-        {
-            header = Lang:t("menu.text.vehicles"),
-            txt = Lang:t("menu.text.vehicles"),
-            params = {
+    lib.registerContext({
+        id = 'public_vehicles',
+        title = garage.label,
+        options = {
+            {
+                title = Lang:t("menu.header.vehicles"),
+                description = Lang:t("menu.text.vehicles"),
                 event = "qb-garages:client:GarageMenu",
                 args = {
                     garageId = garageName,
@@ -126,28 +123,20 @@ local function PublicGarage(garageName, type)
                     type = type
                 }
             }
-        },
-        {
-            header = Lang:t("menu.leave.car"),
-            txt = "",
-            params = {
-                event = 'qb-menu:closeMenu'
-            }
-        },
+        }
     })
+    lib.showContext('public_vehicles')
 end
 
 local function MenuHouseGarage()
     local superCategory = GetSuperCategoryFromCategories(Config.HouseGarageCategories)
-    exports['qb-menu']:openMenu({
-        {
-            header = Lang:t("menu.header.house_garage"),
-            isMenuHeader = true
-        },
-        {
-            header = Lang:t("menu.text.vehicles"),
-            txt = Lang:t("menu.text.vehicles"),
-            params = {
+    lib.registerContext({
+        id = 'house_vehicles',
+        title = Lang:t("menu.header.house_garage"),
+        options = {
+            {
+                title = Lang:t("menu.text.vehicles"),
+                description = Lang:t("menu.text.vehicles"),
                 event = "qb-garages:client:GarageMenu",
                 args = {
                     garageId = CurrentHouseGarage,
@@ -158,19 +147,13 @@ local function MenuHouseGarage()
                     type = 'house'
                 }
             }
-        },
-        {
-            header = Lang:t("menu.leave.car"),
-            txt = "",
-            params = {
-                event = "qb-menu:closeMenu"
-            }
-        },
+        }
     })
+    lib.showContext('house_vehicles')
 end
 
 local function ClearMenu()
-	TriggerEvent("qb-menu:closeMenu")
+	lib.hideContext()
 end
 
 -- Functions
@@ -501,37 +484,27 @@ function JobMenuGarage(garageName)
         end
         return
     end
+
     local vehicleMenu = {
-        {
-            header = jobGarage.label,
-            isMenuHeader = true
-        }
+        id = 'job_vehicle',
+        title = jobGarage.label,
+        options = {}
     }
 
     local vehicles = jobGarage.vehicles[QBCore.Functions.GetPlayerData().job.grade.level]
     for veh, label in pairs(vehicles) do
         vehicleMenu[#vehicleMenu+1] = {
-            header = label,
-            txt = "",
-            params = {
-                event = "qb-garages:client:TakeOutGarage",
-                args = {
-                    vehicleModel = veh,
-                    garage = garage
-                }
+            title = label,
+            description = "",
+            event = "qb-garages:client:TakeOutGarage",
+            args = {
+                vehicleModel = veh,
+                garage = garage
             }
         }
     end
-
-    vehicleMenu[#vehicleMenu+1] = {
-        header = Lang:t('menu.leave.job'),
-        txt = "",
-        params = {
-            event = "qb-menu:client:closeMenu"
-        }
-
-    }
-    exports['qb-menu']:openMenu(vehicleMenu)
+    lib.registerContext(vehicleMenu)
+    lib.showContext('job_vehicle')
 end
 
 function GetFreeParkingSpots(parkingSpots)
@@ -695,25 +668,15 @@ RegisterNetEvent("qb-garages:client:GarageMenu", function(data)
     local type = data.type
     local garageId = data.garageId
     local garage = data.garage
-    local categories = data.categories and data.categories or {'car'}
     local header = data.header
     local superCategory = data.superCategory
-    local leave
-
-    leave = Lang:t("menu.leave." .. superCategory)
-
     QBCore.Functions.TriggerCallback("qb-garage:server:GetGarageVehicles", function(result)
         if result == nil then
             QBCore.Functions.Notify(Lang:t("error.no_vehicles"), "error", 5000)
         else
-            local MenuGarageOptions = {
-                {
-                    header = header,
-                    isMenuHeader = true
-                },
-            }
+            MenuGarageOptions = {}
             result = result and result or {}
-            for k, v in pairs(result) do
+            for _, v in pairs(result) do
                 local enginePercent = Round(v.engine / 10, 0)
                 local bodyPercent = Round(v.body / 10, 0)
                 local currentFuel = v.fuel
@@ -737,45 +700,46 @@ RegisterNetEvent("qb-garages:client:GarageMenu", function(data)
 
                 if type == "depot" then
                     MenuGarageOptions[#MenuGarageOptions+1] = {
-                        header = Lang:t('menu.header.depot', {value = vname, value2 = v.depotprice }),
-                        txt = Lang:t('menu.text.depot', {value = v.plate, value2 = currentFuel, value3 = enginePercent, value4 = bodyPercent, value5 = v.state}),
-                        params = {
-                            event = "qb-garages:client:TakeOutDepot",
-                            args = {
-                                vehicle = v,
-                                vehicleModel = v.vehicle,
-                                type = type,
-                                garage = garage,
-                            }
+                        title = Lang:t('menu.header.depot', {value = vname, value2 = v.depotprice }),
+                        description = Lang:t('menu.text.depot', {value = v.plate, value2 = currentFuel, value3 = enginePercent, value4 = bodyPercent}),
+                        metadata = {
+                            [Lang:t('menu.metadata.plate')] = v.plate,
+                            [Lang:t('menu.metadata.fuel')] = currentFuel,
+                            [Lang:t('menu.metadata.engine')] = enginePercent,
+                            [Lang:t('menu.metadata.body')] = bodyPercent,
+                        },
+                        event = "qb-garages:client:TakeOutDepot",
+                        args = {
+                            vehicle = v,
+                            vehicleModel = v.vehicle,
+                            type = type,
+                            garage = garage,
                         }
                     }
                 else
                     MenuGarageOptions[#MenuGarageOptions+1] = {
-                        header = Lang:t('menu.header.garage', {value = vname, value2 = v.plate}),
-                        txt = Lang:t('menu.text.garage', {value = v.state, value2 = currentFuel, value3 = enginePercent, value4 = bodyPercent}),
-                        params = {
-                            event = "qb-garages:client:TakeOutGarage",
-                            args = {
-                                vehicle = v,
-                                vehicleModel = v.vehicle,
-                                type = type,
-                                garage = garage,
-                                superCategory = superCategory,
-                            }
+                        title = Lang:t('menu.header.garage', {value = vname, value2 = v.plate}),
+                        description = Lang:t('menu.text.garage', {value = v.state}),
+                        metadata = {
+                            [Lang:t('menu.metadata.plate')] = v.plate,
+                            [Lang:t('menu.metadata.fuel')] = currentFuel,
+                            [Lang:t('menu.metadata.engine')] = enginePercent,
+                            [Lang:t('menu.metadata.body')] = bodyPercent,
+                        },
+                        event = "qb-garages:client:TakeOutGarage",
+                        args = {
+                            vehicle = v,
+                            vehicleModel = v.vehicle,
+                            type = type,
+                            garage = garage,
+                            superCategory = superCategory,
                         }
                     }
                 end
                 ::continue::
             end
-
-            MenuGarageOptions[#MenuGarageOptions+1] = {
-                header = leave,
-                txt = "",
-                params = {
-                    event = "qb-menu:closeMenu",
-                }
-            }
-            exports['qb-menu']:openMenu(MenuGarageOptions)
+            lib.registerContext({id = 'garage_carinfo', title = header, options = MenuGarageOptions})
+            lib.showContext('garage_carinfo')
         end
     end, garageId, type, superCategory)
 end)

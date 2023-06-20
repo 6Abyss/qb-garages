@@ -6,11 +6,13 @@ version '1.0.0'
 author 'JDev'
 
 shared_scripts {
-    'config.lua',
+    '@ox_lib/init.lua',
     '@qb-core/shared/locale.lua',
+    'config.lua',
     'locales/en.lua',
     'locales/*.lua'
 }
+
 
 client_scripts {
     '@PolyZone/client.lua',
